@@ -1,53 +1,35 @@
 // -*- mode: c++ -*-
-// Copyright 2016 Keyboardio, inc. <jesse@keyboard.io>
-// See "LICENSE" for license details
 
-#ifndef BUILD_INFORMATION
-#define BUILD_INFORMATION "locally built"
-#endif
-
-// The Kaleidoscope core
 #include "Kaleidoscope.h"
-
-// Support for keys that move the mouse
 #include "Kaleidoscope-MouseKeys.h"
-
-// Support for macros
 #include "Kaleidoscope-Macros.h"
-
-// Support for controlling the keyboard's LEDs
 #include "Kaleidoscope-LEDControl.h"
-
-// Support for an "LED off mode"
 #include "LED-Off.h"
-
-// Support for an LED mode that lights up the keys as you press them
 #include "Kaleidoscope-LED-Stalker.h"
-
-// Support for host power management (suspend & wakeup)
 #include "Kaleidoscope-HostPowerManagement.h"
-
 #include "Kaleidoscope-TapDance.h"
+#include "Kaleidoscope-Qukeys.h"
 
-enum { QWERTY, FUNCTION }; // layers
+enum { LEFT_BRACKET, RIGHT_BRACKET, ESCAPE };
+enum { QWERTY, FUNCTION };
 
 // *INDENT-OFF*
 
 const Key keymaps[][ROWS][COLS] PROGMEM = {
 
   [QWERTY] = KEYMAP_STACKED
-  (___,          Key_1, Key_2, Key_3, Key_4, Key_5, Key_LEDEffectNext,
-   Key_Backtick, Key_Q, Key_W, Key_E, Key_R, Key_T, TD(0),
-   Key_PageUp,   Key_A, Key_S, Key_D, Key_F, Key_G,
-   Key_PageDown, Key_Z, Key_X, Key_C, Key_V, Key_B, Key_Escape,
+  (___,          Key_1, Key_2, Key_3, Key_4, Key_5, ___,
+   Key_Backtick, Key_Q, Key_W, Key_E, Key_R, Key_T, TD(LEFT_BRACKET),
+   Key_Escape,   Key_A, Key_S, Key_D, Key_F, Key_G,
+   Key_PageDown, Key_Z, Key_X, Key_C, Key_V, Key_B, Key_Tab,
    Key_LeftAlt,  Key_Backspace, Key_LeftControl, Key_LeftShift,
    ShiftToLayer(FUNCTION),
 
-   ___,                Key_6, Key_7, Key_8,     Key_9,         Key_0,         ___,
-   TD(1), Key_Y, Key_U, Key_I,     Key_O,         Key_P,         Key_Equals,
-                       Key_H, Key_J, Key_K,     Key_L,         Key_Semicolon, Key_Quote,
-   Key_RightAlt,       Key_N, Key_M, Key_Comma, Key_Period,    Key_Slash,     Key_Minus,
-   Key_RightShift,     Key_Enter, Key_Spacebar, Key_LeftGui,
+   ___,   Key_6, Key_7, Key_8,     Key_9,         Key_0,         ___,
+   TD(RIGHT_BRACKET), Key_Y, Key_U, Key_I,     Key_O,         Key_P,         Key_Equals,
+          Key_H, Key_J, Key_K,     Key_L,         Key_Semicolon, Key_Quote,
+   ___,   Key_N, Key_M, Key_Comma, Key_Period,    Key_Slash,     Key_Minus,
+   Key_RightShift, Key_Enter, Key_Spacebar, Key_LeftGui,
    ShiftToLayer(FUNCTION)),
 
   [FUNCTION] =  KEYMAP_STACKED
@@ -67,7 +49,6 @@ const Key keymaps[][ROWS][COLS] PROGMEM = {
 
 };
 
-/* Re-enable astyle's indent enforcement */
 // *INDENT-ON*
 
 const macro_t *macroAction(uint8_t macroIndex, uint8_t keyState) {
@@ -76,12 +57,41 @@ const macro_t *macroAction(uint8_t macroIndex, uint8_t keyState) {
   return MACRO_NONE;
 }
 
+static bool primed = false;
 void tapDanceAction(uint8_t tap_dance_index, byte row, byte col, uint8_t tap_count, kaleidoscope::TapDance::ActionType tap_dance_action) {
-  switch (tap_dance_action) {
-    case 0:
+  switch (tap_dance_index) {
+    case LEFT_BRACKET:
       return tapDanceActionKeys(tap_count, tap_dance_action, Key_LeftParen, Key_LeftCurlyBracket, Key_LeftBracket);
-    case 1:
+    case RIGHT_BRACKET:
       return tapDanceActionKeys(tap_count, tap_dance_action, Key_RightParen, Key_RightCurlyBracket, Key_RightBracket);
+    case ESCAPE:
+      if (tap_dance_action == kaleidoscope::TapDance::Interrupt && primed) {
+        kaleidoscope::hid::pressKey(Key_F);
+        primed = false;
+      }
+      if (tap_dance_action == kaleidoscope::TapDance::Timeout && primed) {
+        kaleidoscope::hid::pressKey(Key_F);
+        primed = false;
+      }
+
+      if (tap_dance_action == kaleidoscope::TapDance::Tap) {
+        if (col == 4 && row == 2) {
+          if (primed) {
+            kaleidoscope::hid::pressKey(Key_F);
+            kaleidoscope::hid::pressKey(Key_F);
+            primed = false;
+          } else {
+            primed = true;
+          }
+        } else if (col == 3 && row == 2) {
+          if (primed) {
+            kaleidoscope::hid::pressKey(Key_Escape);
+          } else {
+            kaleidoscope::hid::pressKey(Key_D);
+          }
+          primed = false; 
+        }
+      }
   }
 }
 
@@ -109,6 +119,7 @@ void setup() {
   Kaleidoscope.setup();
 
   Kaleidoscope.use(
+    &Qukeys,
     &LEDControl,
     &StalkerEffect,
     &Macros,
