@@ -2,16 +2,16 @@
 
 #include "Kaleidoscope.h"
 #include "Kaleidoscope-MouseKeys.h"
-#include "Kaleidoscope-Macros.h"
 #include "Kaleidoscope-LEDControl.h"
-#include "LED-Off.h"
 #include "Kaleidoscope-LED-Stalker.h"
 #include "Kaleidoscope-HostPowerManagement.h"
 #include "Kaleidoscope-TapDance.h"
 #include "Kaleidoscope-Qukeys.h"
+#include "Kaleidoscope-Steno.h"
+#include "LED-Off.h"
 
 enum { LEFT_BRACKET, RIGHT_BRACKET, ESCAPE };
-enum { QWERTY, FUNCTION };
+enum { QWERTY, STENO, FUNCTION};
 
 // *INDENT-OFF*
 
@@ -21,41 +21,56 @@ const Key keymaps[][ROWS][COLS] PROGMEM = {
   (___,          Key_1, Key_2, Key_3, Key_4, Key_5, ___,
    Key_Backtick, Key_Q, Key_W, Key_E, Key_R, Key_T, TD(LEFT_BRACKET),
    Key_Escape,   Key_A, Key_S, Key_D, Key_F, Key_G,
-   Key_PageDown, Key_Z, Key_X, Key_C, Key_V, Key_B, Key_Tab,
-   Key_LeftAlt,  Key_Backspace, Key_LeftControl, Key_LeftShift,
+   ___,          Key_Z, Key_X, Key_C, Key_V, Key_B, Key_Tab,
+   
+   Key_LeftAlt, Key_Backspace, Key_LeftControl, Key_LeftShift,
    ShiftToLayer(FUNCTION),
 
-   ___,   Key_6, Key_7, Key_8,     Key_9,         Key_0,         ___,
+   ___,               Key_6, Key_7, Key_8,     Key_9,         Key_0,         ___,
    TD(RIGHT_BRACKET), Key_Y, Key_U, Key_I,     Key_O,         Key_P,         Key_Equals,
-          Key_H, Key_J, Key_K,     Key_L,         Key_Semicolon, Key_Quote,
-   ___,   Key_N, Key_M, Key_Comma, Key_Period,    Key_Slash,     Key_Minus,
+                      Key_H, Key_J, Key_K,     Key_L,         Key_Semicolon, Key_Quote,
+   ___,               Key_N, Key_M, Key_Comma, Key_Period,    Key_Slash,     Key_Minus,
+   
    Key_RightShift, Key_Enter, Key_Spacebar, Key_LeftGui,
    ShiftToLayer(FUNCTION)),
+
+  [STENO] = KEYMAP_STACKED
+  (XXX,    XXX,   XXX,   XXX,   XXX,   XXX,   S(N6),
+   XXX,    S(N1), S(N2), S(N3), S(N4), S(N5), S(ST1),
+   S(FN),  S(S1), S(TL), S(PL), S(HL), S(ST1),
+   S(PWR), S(S2), S(KL), S(WL), S(RL), S(ST2), S(ST2),
+
+   S(RE1), XXX, S(A), S(O),
+   ___,
+
+   S(N7),  XXX,    XXX,   XXX,   XXX,   XXX,   XXX,
+   S(ST3), S(N8),  S(N9), S(NA), S(NB), S(NC), XXX,
+   S(ST3), S(FR),  S(PR), S(LR), S(TR), S(DR),
+   S(ST4), S(ST4), S(RR), S(BR), S(GR), S(SR), S(ZR),
+
+   S(E), S(U), XXX, S(RE2),
+   ___),
 
   [FUNCTION] =  KEYMAP_STACKED
   (___,      Key_F1,           Key_F2,      Key_F3,     Key_F4,        Key_F5,           XXX,
    Key_Tab,  ___,              Key_mouseUp, ___,        Key_mouseBtnR, Key_mouseWarpEnd, Key_mouseWarpNE,
    Key_Home, Key_mouseL,       Key_mouseDn, Key_mouseR, Key_mouseBtnL, Key_mouseWarpNW,
-   Key_End,  Key_PrintScreen,  Key_Insert,  ___,        Key_mouseBtnM, Key_mouseWarpSW,  Key_mouseWarpSE,
+   Key_End,  ___,  ___,  ___,        Key_mouseBtnM, Key_mouseWarpSW,  Key_mouseWarpSE,
+   
    ___, Key_Delete, ___, ___,
    ___,
 
    Consumer_ScanPreviousTrack, Key_F6,                 Key_F7,                   Key_F8,                   Key_F9,          Key_F10,          Key_F11,
    Consumer_PlaySlashPause,    Consumer_ScanNextTrack, Key_LeftCurlyBracket,     Key_RightCurlyBracket,    Key_LeftBracket, Key_RightBracket, Key_F12,
                                Key_LeftArrow,          Key_DownArrow,            Key_UpArrow,              Key_RightArrow,  ___,              ___,
-   Key_PcApplication,          Consumer_Mute,          Consumer_VolumeDecrement, Consumer_VolumeIncrement, ___,             Key_Backslash,    Key_Pipe,
+   LockLayer(STENO),          Consumer_Mute,          Consumer_VolumeDecrement, Consumer_VolumeIncrement, ___,             Key_Backslash,    Key_Pipe,
+   
    ___, ___, ___, ___,
-   ___)
+   ___),
 
 };
 
 // *INDENT-ON*
-
-const macro_t *macroAction(uint8_t macroIndex, uint8_t keyState) {
-  switch (macroIndex) {
-  }
-  return MACRO_NONE;
-}
 
 static bool primed = false;
 void tapDanceAction(uint8_t tap_dance_index, byte row, byte col, uint8_t tap_count, kaleidoscope::TapDance::ActionType tap_dance_action) {
@@ -95,7 +110,8 @@ void tapDanceAction(uint8_t tap_dance_index, byte row, byte col, uint8_t tap_cou
   }
 }
 
-void toggleLedsOnSuspendResume(kaleidoscope::HostPowerManagement::Event event) {
+
+void hostPowerManagementEventHandler(kaleidoscope::HostPowerManagement::Event event) {
   switch (event) {
   case kaleidoscope::HostPowerManagement::Suspend:
     LEDControl.paused = true;
@@ -111,24 +127,26 @@ void toggleLedsOnSuspendResume(kaleidoscope::HostPowerManagement::Event event) {
   }
 }
 
-void hostPowerManagementEventHandler(kaleidoscope::HostPowerManagement::Event event) {
-  toggleLedsOnSuspendResume(event);
-}
-
 void setup() {
+  Serial.begin(9600);
   Kaleidoscope.setup();
 
   Kaleidoscope.use(
+    &GeminiPR,
     &Qukeys,
     &LEDControl,
     &StalkerEffect,
-    &Macros,
-    &MouseKeys,
     &HostPowerManagement,
-    &TapDance
+    &TapDance,
+    &MouseKeys
   );
 
-  StalkerEffect.variant = STALKER(Haunt, (CRGB(0, 128, 0)));
+  QUKEYS(
+    kaleidoscope::Qukey(0, 3, 0, Key_LeftShift),
+    kaleidoscope::Qukey(0, 3, 15, Key_RightShift)
+  );
+
+  StalkerEffect.variant = STALKER(Haunt, (CRGB(0, 255, 0)));
   HostPowerManagement.enableWakeup();
   LEDOff.activate();
 }
