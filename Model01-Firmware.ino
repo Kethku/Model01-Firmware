@@ -9,9 +9,13 @@
 #include "Kaleidoscope-Qukeys.h"
 #include "Kaleidoscope-Steno.h"
 #include "LED-Off.h"
+#include "kaleidoscope/hid.h"
+#include "MultiReport/Keyboard.h"
+#include "key_defs_keymaps.h"
 
-enum { LEFT_BRACKET, RIGHT_BRACKET, ESCAPE };
-enum { QWERTY, GAMING, STENO, FUNCTION};
+enum { LEFT_BRACKET, RIGHT_BRACKET };
+enum { QWERTY, GAMING, STENO, FUNCTION };
+enum { MACRO_F, MACRO_D };
 
 // *INDENT-OFF*
 
@@ -70,9 +74,9 @@ const Key keymaps[][ROWS][COLS] PROGMEM = {
    
   [FUNCTION] =  KEYMAP_STACKED
   (XXX, Key_F1,     Key_F2,      Key_F3,            Key_F4,        Key_F5, XXX,
-   XXX, XXX,        Key_mouseUp, Key_mouseScrollUp, Key_mouseBtnR, XXX,    XXX,
-   XXX, Key_mouseL, Key_mouseDn, Key_mouseR,        Key_mouseBtnL, XXX,
-   XXX, XXX,        XXX,         Key_mouseScrollDn, Key_mouseBtnM, XXX,    LockLayer(GAMING),
+   XXX, XXX, XXX,        Key_mouseUp, Key_mouseScrollUp, Key_mouseBtnR,    XXX,
+   XXX, XXX, Key_mouseL, Key_mouseDn, Key_mouseR,        Key_mouseBtnL,
+   XXX, XXX, XXX,        XXX,         Key_mouseScrollDn, Key_mouseBtnM,    LockLayer(GAMING),
    
    Key_LeftAlt, Key_Delete, Key_LeftControl, Key_LeftShift,
    ShiftToLayer(FUNCTION),
@@ -80,7 +84,7 @@ const Key keymaps[][ROWS][COLS] PROGMEM = {
    XXX,               Key_F6,               Key_F7,               Key_F8,             Key_F9,                Key_F10,       Key_F11,
    LockLayer(STENO),  LCTRL(Key_LeftArrow), LCTRL(Key_DownArrow), LCTRL(Key_UpArrow), LCTRL(Key_RightArrow), XXX,           Key_F12,
                       Key_LeftArrow,        Key_DownArrow,        Key_UpArrow,        Key_RightArrow,        XXX,           XXX,
-   LockLayer(QUERTY), Key_Home,             Key_PageDown,         Key_PageUp,         Key_End,               Key_Backslash, Key_Pipe,
+   LockLayer(QWERTY), Key_Home,             Key_PageDown,         Key_PageUp,         Key_End,               Key_Backslash, Key_Pipe,
    
    Key_RightShift, Key_Enter, Key_Tab, Key_RightGui,
    ShiftToLayer(FUNCTION)),
@@ -88,44 +92,6 @@ const Key keymaps[][ROWS][COLS] PROGMEM = {
 };
 
 // *INDENT-ON*
-
-static bool primed = false;
-void tapDanceAction(uint8_t tap_dance_index, byte row, byte col, uint8_t tap_count, kaleidoscope::TapDance::ActionType tap_dance_action) {
-  switch (tap_dance_index) {
-    case LEFT_BRACKET:
-      return tapDanceActionKeys(tap_count, tap_dance_action, Key_LeftParen, Key_LeftCurlyBracket, Key_LeftBracket);
-    case RIGHT_BRACKET:
-      return tapDanceActionKeys(tap_count, tap_dance_action, Key_RightParen, Key_RightCurlyBracket, Key_RightBracket);
-    case ESCAPE:
-      if (tap_dance_action == kaleidoscope::TapDance::Interrupt && primed) {
-        kaleidoscope::hid::pressKey(Key_F);
-        primed = false;
-      }
-      if (tap_dance_action == kaleidoscope::TapDance::Timeout && primed) {
-        kaleidoscope::hid::pressKey(Key_F);
-        primed = false;
-      }
-
-      if (tap_dance_action == kaleidoscope::TapDance::Tap) {
-        if (col == 4 && row == 2) {
-          if (primed) {
-            kaleidoscope::hid::pressKey(Key_F);
-            kaleidoscope::hid::pressKey(Key_F);
-            primed = false;
-          } else {
-            primed = true;
-          }
-        } else if (col == 3 && row == 2) {
-          if (primed) {
-            kaleidoscope::hid::pressKey(Key_Escape);
-          } else {
-            kaleidoscope::hid::pressKey(Key_D);
-          }
-          primed = false; 
-        }
-      }
-  }
-}
 
 
 void hostPowerManagementEventHandler(kaleidoscope::HostPowerManagement::Event event) {
@@ -141,6 +107,113 @@ void hostPowerManagementEventHandler(kaleidoscope::HostPowerManagement::Event ev
     break;
   case kaleidoscope::HostPowerManagement::Sleep:
     break;
+  }
+}
+
+static bool primed = false;
+void tapDanceAction(uint8_t tap_dance_index, byte row, byte col, uint8_t tap_count, kaleidoscope::TapDance::ActionType tap_dance_action) {
+  switch (tap_dance_index) {
+    case LEFT_BRACKET:
+      return tapDanceActionKeys(tap_count, tap_dance_action, Key_LeftParen, Key_LeftCurlyBracket, Key_LeftBracket);
+    case RIGHT_BRACKET:
+      return tapDanceActionKeys(tap_count, tap_dance_action, Key_RightParen, Key_RightCurlyBracket, Key_RightBracket);
+  }
+}
+
+bool skip = false;
+void typeKey(Key key) {
+  HID_KeyboardReport_Data_t hid_report;
+  memcpy(hid_report.allkeys, Keyboard.keyReport.allkeys, sizeof(hid_report));
+  memcpy(Keyboard.keyReport.allkeys, Keyboard.lastKeyReport.allkeys, sizeof(Keyboard.keyReport));
+  skip = true;
+  handleKeyswitchEvent(key, UNKNOWN_KEYSWITCH_LOCATION, IS_PRESSED | INJECTED);
+  kaleidoscope::hid::sendKeyboardReport();
+  skip = true;
+  handleKeyswitchEvent(key, UNKNOWN_KEYSWITCH_LOCATION, WAS_PRESSED | INJECTED);
+  kaleidoscope::hid::sendKeyboardReport();
+  memcpy(Keyboard.keyReport.allkeys, hid_report.allkeys, sizeof(hid_report));
+}
+
+Key f_stored = Key_NoKey;
+bool f_handeled = false;
+bool d_handeled = false;
+uint32_t end_time;
+uint16_t time_out = 200;
+Key eventHandlerHook(Key mapped_key, byte row, byte col, uint8_t key_state) {
+  if (skip) {
+    skip = false;
+    return mapped_key;
+  }
+  if (Layer.isOn(QWERTY)) {
+    if (keyToggledOn(key_state)) {
+      if (row == 2) {
+        if (col == 4) { // f column
+          end_time = millis() + time_out;
+          f_handeled = true;
+          if (f_stored != Key_NoKey) {
+            // repeated
+            f_stored = mapped_key;
+            return f_stored;
+          } else {
+            // first press
+            f_stored = mapped_key;
+            return Key_NoKey;
+          }
+        } else if (col == 3) { // d column
+          if (f_stored != Key_NoKey) {
+            f_stored = Key_NoKey;
+            d_handeled = true;
+            return Key_Escape;
+          } else {
+            return mapped_key;
+          }
+        }
+      }
+
+      // interrupted
+      if (f_stored != Key_NoKey) {
+        typeKey(f_stored);
+        f_stored = Key_NoKey;
+      }
+      return mapped_key;
+    } else if (keyIsPressed(key_state) && keyWasPressed(key_state)) {
+      if (row == 2) {
+        if (col == 4) {
+          if (f_handeled) {
+            return Key_NoKey;
+          }
+        } else if (col == 3) {
+          if (d_handeled) {
+            return Key_NoKey;
+          }
+        }
+      }
+    } else if (keyToggledOff(key_state)) {
+      if (row == 2) {
+        if (col == 4) {
+          f_handeled = false;
+        } else if (col == 3) {
+          d_handeled = false;
+        }
+      }
+    }
+  }
+  return mapped_key;
+}
+
+void loopHook(bool is_post_clear) {
+  if (!is_post_clear)
+    return;
+
+  if (end_time && millis() > end_time) {
+    f_handeled = false;
+    d_handeled = false;
+    if (f_stored != Key_NoKey) {
+      typeKey(f_stored);
+      f_stored = Key_NoKey;
+    }
+
+    end_time = 0;
   }
 }
 
@@ -166,6 +239,9 @@ void setup() {
   StalkerEffect.variant = STALKER(Haunt, (CRGB(0, 255, 0)));
   HostPowerManagement.enableWakeup();
   LEDOff.activate();
+
+  Kaleidoscope.useEventHandlerHook(eventHandlerHook);
+  Kaleidoscope.useLoopHook(loopHook);
 }
 
 void loop() {
