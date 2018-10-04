@@ -43,7 +43,7 @@ KEYMAPS(
  Key_Minus,         Key_6, Key_7, Key_8,     Key_9,         Key_0,         XXX,
  TD(RIGHT_BRACKET), Key_Y, Key_U, Key_I,     Key_O,         Key_P,         Key_Backslash,
                     Key_H, Key_J, Key_K,     Key_L,         Key_Semicolon, Key_Quote,
- LEAD(0),           Key_N, Key_M, Key_Comma, Key_Period,    Key_Slash,     XXX,
+ XXX,               Key_N, Key_M, Key_Comma, Key_Period,    Key_Slash,     XXX,
  
  Key_RightAlt, Key_Enter, Key_Spacebar, Key_RightGui,
  ShiftToLayer(FUNCTION)),
@@ -74,10 +74,10 @@ KEYMAPS(
  Key_LeftAlt, Key_Delete, Key_LeftControl, Key_LeftShift,
  ShiftToLayer(FUNCTION),
 
- XXX,     Key_F6,               Key_F7,               Key_F8,             Key_F9,                Key_F10, Key_F11,
- XXX,     LCTRL(Key_LeftArrow), LCTRL(Key_DownArrow), LCTRL(Key_UpArrow), LCTRL(Key_RightArrow), XXX,     Key_F12,
-          Key_LeftArrow,        Key_DownArrow,        Key_UpArrow,        Key_RightArrow,        XXX,     XXX,
- LEAD(0), Key_Home,             Key_PageDown,         Key_PageUp,         Key_End,               XXX,     XXX,
+ XXX, Key_F6,               Key_F7,               Key_F8,             Key_F9,                Key_F10, Key_F11,
+ XXX, LCTRL(Key_LeftArrow), LCTRL(Key_DownArrow), LCTRL(Key_UpArrow), LCTRL(Key_RightArrow), XXX,     Key_F12,
+      Key_LeftArrow,        Key_DownArrow,        Key_UpArrow,        Key_RightArrow,        XXX,     XXX,
+ XXX, Key_Home,             Key_PageDown,         Key_PageUp,         Key_End,               XXX,     XXX,
 
  Key_RightShift, Key_Enter, Key_Tab, Key_RightGui,
  ShiftToLayer(FUNCTION))
@@ -113,15 +113,6 @@ void hostPowerManagementEventHandler(kaleidoscope::HostPowerManagement::Event ev
   toggleLedsOnSuspendResume(event);
 }
 
-/** A tiny wrapper, to be used by MagicCombo.
- * This simply toggles the keyboard protocol via USBQuirks, and wraps it within
- * a function with an unused argument, to match what MagicCombo expects.
- */
-static void toggleKeyboardProtocol(uint8_t combo_index) {
-  USBQuirks.toggleKeyboardProtocol();
-}
-
-
 void tapDanceAction(uint8_t tap_dance_index, byte row, byte col, uint8_t tap_count, kaleidoscope::TapDance::ActionType tap_dance_action) {
   switch (tap_dance_index) {
     case LEFT_BRACKET:
@@ -130,15 +121,6 @@ void tapDanceAction(uint8_t tap_dance_index, byte row, byte col, uint8_t tap_cou
       return tapDanceActionKeys(tap_count, tap_dance_action, Key_RightParen, Key_RightCurlyBracket, Key_RightBracket);
   }
 }
-
-static void switchToSteno(uint8_t seq_index) {
-  Layer.move(STENO);
-}
-
-static const kaleidoscope::Leader::dictionary_t leader_dictionary[] PROGMEM =
-  LEADER_DICT(
-    {LEADER_SEQ(LEAD(0), Key_S), switchToSteno}
-  );
 
 bool skip = false;
 void typeKey(Key key, uint8_t modifiers, bool tap) {
@@ -271,7 +253,7 @@ namespace kaleidoscope {
     bool draw = true;
     if (Layer.isOn(STENO)) {
       cleaned = false;
-      alert_color = CRGB(255, 0, 0);
+      alert_color = CRGB(0, 255, 0);
     } else if (Layer.isOn(FUNCTION)) {
       cleaned = false;
       alert_color = CRGB(255, 255, 255);
@@ -294,6 +276,29 @@ namespace kaleidoscope {
 kaleidoscope::FDEscape FDEscape;
 kaleidoscope::LEDStatus LEDStatus;
 
+enum { TOGGLE_STENO, TOGGLE_PROTOCOL };
+
+void toggleSteno(uint8_t combo_index) {
+  if (Layer.isOn(STENO)) {
+    Layer.off(STENO);
+  } else {
+    Layer.on(STENO);
+  }
+}
+
+/** A tiny wrapper, to be used by MagicCombo.
+ * This simply toggles the keyboard protocol via USBQuirks, and wraps it within
+ * a function with an unused argument, to match what MagicCombo expects.
+ */
+static void toggleKeyboardProtocol(uint8_t combo_index) {
+  USBQuirks.toggleKeyboardProtocol();
+}
+
+
+USE_MAGIC_COMBOS(
+  [TOGGLE_STENO] = {.action = toggleSteno, .keys = {R3C6, R3C9, R2C2}},
+  [TOGGLE_PROTOCOL] = {.action = toggleKeyboardProtocol, .keys = {R3C6, R3C9, R1C14}});
+
 // First, tell Kaleidoscope which plugins you want to use.
 // The order can be important. For example, LED effects are
 // added in the order they're listed here.
@@ -303,10 +308,12 @@ KALEIDOSCOPE_INIT_PLUGINS(
   MouseKeys,
   HostPowerManagement,
   USBQuirks,
+  MagicCombo, 
+  Macros,
   TapDance,
-  Leader,
   FDEscape,
-  LEDStatus
+  LEDStatus,
+  GeminiPR
 );
 
 /** The 'setup' function is one of the two standard Arduino sketch functions.
@@ -319,8 +326,6 @@ void setup() {
   
   StalkerEffect.variant = STALKER(BlazingTrail);
   StalkerEffect.activate();
-
-  Leader.dictionary = leader_dictionary;
 }
 
 /** loop is the second of the standard Arduino sketch functions.
