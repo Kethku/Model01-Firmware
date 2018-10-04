@@ -245,15 +245,22 @@ namespace kaleidoscope {
       EventHandlerResult afterEachCycle();
     private:
       static bool cleaned;
+      static uint8_t initialProtocol;
   };
 
   bool LEDStatus::cleaned = true;
+  uint8_t LEDStatus::initialProtocol = BootKeyboard.getProtocol();
   EventHandlerResult LEDStatus::afterEachCycle() {
     cRGB alert_color = CRGB(0, 0, 0);
     bool draw = true;
     if (Layer.isOn(STENO)) {
       cleaned = false;
       alert_color = CRGB(0, 255, 0);
+#if KALEIDOSCOPE_HIDADAPTOR_ENABLE_KEYBOARD_BOOT_PROTOCOL
+    } else if (BootKeyboard.getProtocol() != initialProtocol) {
+      cleaned = false;
+      alert_color = CRGB(255, 0, 0);
+#endif
     } else if (Layer.isOn(FUNCTION)) {
       cleaned = false;
       alert_color = CRGB(255, 255, 255);
