@@ -1,15 +1,21 @@
 // -*- mode: c++ -*-
+// Copyright 2016 Keyboardio, inc. <jesse@keyboard.io>
+// See "LICENSE" for license details
+
+#ifndef BUILD_INFORMATION
+#define BUILD_INFORMATION "locally built"
+#endif
 
 #include "Kaleidoscope.h"
 #include "Kaleidoscope-MouseKeys.h"
 #include "Kaleidoscope-LEDControl.h"
 #include "Kaleidoscope-LED-Stalker.h"
-#include "Kaleidoscope-Heatmap.h"
 #include "Kaleidoscope-HostPowerManagement.h"
+#include "Kaleidoscope-USB-Quirks.h"
+#include "Kaleidoscope-Macros.h"
+#include "Kaleidoscope-MagicCombo.h"
 #include "Kaleidoscope-TapDance.h"
-#include "Kaleidoscope-Qukeys.h"
 #include "Kaleidoscope-Steno.h"
-#include "Kaleidoscope-OneShot.h"
 #include "Kaleidoscope-Leader.h"
 #include "kaleidoscope/hid.h"
 #include "MultiReport/Keyboard.h"
@@ -17,19 +23,21 @@
 #include "layers.h"
 
 enum { LEFT_BRACKET, RIGHT_BRACKET };
-enum { QWERTY, GAMING, STENO, FUNCTION };
+enum { QWERTY, STENO, FUNCTION };
 
+/* This comment temporarily turns off astyle's indent enforcement
+ *   so we can make the keymaps actually resemble the physical key layout better
+ */
 // *INDENT-OFF*
 
-const Key keymaps[][ROWS][COLS] PROGMEM = {
-
+KEYMAPS(
 [QWERTY] = KEYMAP_STACKED
 (XXX,          Key_1, Key_2, Key_3, Key_4, Key_5, Key_Equals,
  Key_Tab,      Key_Q, Key_W, Key_E, Key_R, Key_T, TD(LEFT_BRACKET),
  Key_Escape,   Key_A, Key_S, Key_D, Key_F, Key_G,
  Key_Backtick, Key_Z, Key_X, Key_C, Key_V, Key_B, XXX,
    
- Key_Tab, Key_Backspace, Key_LeftShift,  OSM(LeftControl),
+ Key_Tab, Key_Backspace, Key_LeftShift,  Key_LeftControl,
  ShiftToLayer(FUNCTION),
 
  Key_Minus,         Key_6, Key_7, Key_8,     Key_9,         Key_0,         XXX,
@@ -37,26 +45,9 @@ const Key keymaps[][ROWS][COLS] PROGMEM = {
                     Key_H, Key_J, Key_K,     Key_L,         Key_Semicolon, Key_Quote,
  LEAD(0),           Key_N, Key_M, Key_Comma, Key_Period,    Key_Slash,     XXX,
  
- OSM(RightAlt), Key_Enter, Key_Spacebar, Key_RightGui,
+ Key_RightAlt, Key_Enter, Key_Spacebar, Key_RightGui,
  ShiftToLayer(FUNCTION)),
-
-[GAMING] = KEYMAP_STACKED
-(___,           ___, ___, ___, ___, ___, ___,
- ___,           ___, ___, ___, ___, ___, ___,
- ___,           ___, ___, ___, ___, ___,
- Key_LeftShift, ___, ___, ___, ___, ___, ___,
  
- Key_Space, Key_Backspace, ___, ___,
- ___,
-
- ___, ___, ___, ___, ___, ___, ___,
- ___, ___, ___, ___, ___, ___, ___,
- ___, ___, ___, ___, ___, ___,
- ___, ___, ___, ___, ___, ___, ___,
-
- ___, ___, ___, ___,
- ___),
-
 [STENO] = KEYMAP_STACKED
 (XXX,    XXX,   XXX,   XXX,   XXX,   XXX,   S(N6),
  XXX,    S(N1), S(N2), S(N3), S(N4), S(N5), S(ST1),
@@ -73,7 +64,7 @@ const Key keymaps[][ROWS][COLS] PROGMEM = {
 
  XXX, S(E), S(U), S(RE2),
  ShiftToLayer(FUNCTION)),
- 
+
 [FUNCTION] =  KEYMAP_STACKED
 (XXX, Key_F1, Key_F2,     Key_F3,      Key_F4,            Key_F5,        XXX,
  XXX, XXX,    XXX,        Key_mouseUp, Key_mouseScrollUp, Key_mouseBtnR, XXX,
@@ -89,29 +80,48 @@ const Key keymaps[][ROWS][COLS] PROGMEM = {
  LEAD(0), Key_Home,             Key_PageDown,         Key_PageUp,         Key_End,               XXX,     XXX,
 
  Key_RightShift, Key_Enter, Key_Tab, Key_RightGui,
- ShiftToLayer(FUNCTION)),
+ ShiftToLayer(FUNCTION))
+) // KEYMAPS(
 
-};
-
+/* Re-enable astyle's indent enforcement */
 // *INDENT-ON*
 
-void hostPowerManagementEventHandler(kaleidoscope::HostPowerManagement::Event event) {
+/** toggleLedsOnSuspendResume toggles the LEDs off when the host goes to sleep,
+ * and turns them back on when it wakes up.
+ */
+void toggleLedsOnSuspendResume(kaleidoscope::HostPowerManagement::Event event) {
   switch (event) {
-    case kaleidoscope::HostPowerManagement::Suspend:
-      LEDControl.paused = true;
-      LEDControl.set_all_leds_to({0, 0, 0});
-      LEDControl.syncLeds();
-      break;
-    case kaleidoscope::HostPowerManagement::Resume:
-      LEDControl.paused = false;
-      LEDControl.refreshAll();
-      break;
-    case kaleidoscope::HostPowerManagement::Sleep:
-      break;
+  case kaleidoscope::HostPowerManagement::Suspend:
+    LEDControl.paused = true;
+    LEDControl.set_all_leds_to({0, 0, 0});
+    LEDControl.syncLeds();
+    break;
+  case kaleidoscope::HostPowerManagement::Resume:
+    LEDControl.paused = false;
+    LEDControl.refreshAll();
+    break;
+  case kaleidoscope::HostPowerManagement::Sleep:
+    break;
   }
 }
 
-static bool primed = false;
+/** hostPowerManagementEventHandler dispatches power management events (suspend,
+ * resume, and sleep) to other functions that perform action based on these
+ * events.
+ */
+void hostPowerManagementEventHandler(kaleidoscope::HostPowerManagement::Event event) {
+  toggleLedsOnSuspendResume(event);
+}
+
+/** A tiny wrapper, to be used by MagicCombo.
+ * This simply toggles the keyboard protocol via USBQuirks, and wraps it within
+ * a function with an unused argument, to match what MagicCombo expects.
+ */
+static void toggleKeyboardProtocol(uint8_t combo_index) {
+  USBQuirks.toggleKeyboardProtocol();
+}
+
+
 void tapDanceAction(uint8_t tap_dance_index, byte row, byte col, uint8_t tap_count, kaleidoscope::TapDance::ActionType tap_dance_action) {
   switch (tap_dance_index) {
     case LEFT_BRACKET:
@@ -120,6 +130,15 @@ void tapDanceAction(uint8_t tap_dance_index, byte row, byte col, uint8_t tap_cou
       return tapDanceActionKeys(tap_count, tap_dance_action, Key_RightParen, Key_RightCurlyBracket, Key_RightBracket);
   }
 }
+
+static void switchToSteno(uint8_t seq_index) {
+  Layer.move(STENO);
+}
+
+static const kaleidoscope::Leader::dictionary_t leader_dictionary[] PROGMEM =
+  LEADER_DICT(
+    {LEADER_SEQ(LEAD(0), Key_S), switchToSteno}
+  );
 
 bool skip = false;
 void typeKey(Key key, uint8_t modifiers, bool tap) {
@@ -130,183 +149,186 @@ void typeKey(Key key, uint8_t modifiers, bool tap) {
   handleKeyswitchEvent(key, UNKNOWN_KEYSWITCH_LOCATION, IS_PRESSED | INJECTED);
   kaleidoscope::hid::sendKeyboardReport();
   if (tap) {
-    skip = true;
     handleKeyswitchEvent(key, UNKNOWN_KEYSWITCH_LOCATION, WAS_PRESSED | INJECTED);
     kaleidoscope::hid::sendKeyboardReport();
   }
   memcpy(Keyboard.keyReport.allkeys, hid_report.allkeys, sizeof(Keyboard.keyReport));
 }
 
-uint8_t stored_modifiers;
-Key f_stored = Key_NoKey;
-bool f_handeled = false;
-bool d_handeled = false;
-uint32_t start_time;
-uint16_t time_out = 200;
-bool debug = true;
-Key eventHandlerHook(Key mapped_key, byte row, byte col, uint8_t key_state) {
-  if (skip) {
-    skip = false;
-    return mapped_key;
-  }
-  if (Layer.isOn(QWERTY)) {
-    if (keyToggledOn(key_state)) {
-      if (row == 2) {
-        if (col == 4) { // f column
-          start_time = millis();
-          f_handeled = true;
-          if (f_stored != Key_NoKey) {
-            if (debug) Serial.print("repeated\n");
-            f_stored = mapped_key;
-            return f_stored;
-          } else {
-            if (debug) Serial.print("first press\n");
-            stored_modifiers = Keyboard.lastKeyReport.modifiers;
-            f_stored = mapped_key;
-            return Key_NoKey;
+namespace kaleidoscope {
+  class FDEscape : public kaleidoscope::Plugin {
+    public: 
+      FDEscape() {}
+      
+      EventHandlerResult onKeyswitchEvent(Key &mapped_key, byte row, byte col, uint8_t key_state);
+      EventHandlerResult afterEachCycle();
+
+    private:
+      static uint8_t stored_modifiers;
+      static Key f_stored;
+      static bool f_handled;
+      static bool d_handled;
+      static uint32_t start_time;
+      static uint16_t time_out;
+  };
+  
+  uint8_t FDEscape::stored_modifiers;
+  Key FDEscape::f_stored = Key_NoKey;
+  bool FDEscape::f_handled = false;
+  bool FDEscape::d_handled = false;
+  uint32_t FDEscape::start_time;
+  uint16_t FDEscape::time_out = 200;
+  
+  EventHandlerResult FDEscape::onKeyswitchEvent(Key &mapped_key, byte row, byte col, uint8_t key_state) {
+    if (skip) {
+      skip = false;
+      return EventHandlerResult::OK;
+    }
+
+    if (Layer.isOn(QWERTY)) {
+      if (keyToggledOn(key_state)) {
+        if (row == 2) {
+          if (col == 4) {
+            start_time = Kaleidoscope.millisAtCycleStart();
+            f_handled = true;
+            if (f_stored != Key_NoKey) {
+              f_stored = mapped_key;
+              return EventHandlerResult::OK;
+            } else {
+              stored_modifiers = Keyboard.lastKeyReport.modifiers;
+              f_stored = mapped_key;
+              return EventHandlerResult::EVENT_CONSUMED;
+            }
+          } else if (col == 3) {
+            if (f_stored != Key_NoKey) {
+              f_stored = Key_NoKey;
+              d_handled = true;
+              typeKey(Key_Escape, Keyboard.lastKeyReport.modifiers, true); 
+              return EventHandlerResult::EVENT_CONSUMED;
+            } else {
+              return EventHandlerResult::OK;
+            }
           }
-        } else if (col == 3) { // d column
-          if (f_stored != Key_NoKey) {
-            if (debug) Serial.print("escaped\n");
-            f_stored = Key_NoKey;
-            d_handeled = true;
-            OneShot.cancel(true);
-            return Key_Escape;
-          } else {
-            if (debug) Serial.print("d\n");
-            return mapped_key;
+        }
+
+        // interrupted
+        if (f_stored != Key_NoKey) {
+          typeKey(f_stored, stored_modifiers, true);
+          f_stored = Key_NoKey;
+        }
+        return EventHandlerResult::OK;
+      } else if (keyIsPressed(key_state) && keyWasPressed(key_state)) {
+        if (row == 2) {
+          if (col == 4) {
+            if (f_handled) {
+              return EventHandlerResult::EVENT_CONSUMED;
+            }
+          } else if (col == 3) {
+            if (d_handled) {
+              return EventHandlerResult::EVENT_CONSUMED;
+            }
+          }
+        }
+      } else if (keyToggledOff(key_state)) {
+        if (row == 2) {
+          if (col == 4) {
+            if (f_stored != Key_NoKey) {
+              typeKey(f_stored, stored_modifiers, true);
+              f_stored = Key_NoKey;
+            }
+            f_handled = false;
+          } else if (col == 3) {
+            d_handled = false;
           }
         }
       }
+    }
+    return EventHandlerResult::OK;
+  }
 
-      // interrupted
+  EventHandlerResult FDEscape::afterEachCycle() {
+    if (Kaleidoscope.millisAtCycleStart() - start_time > time_out) {
+      f_handled = false;
       if (f_stored != Key_NoKey) {
-        if (debug) Serial.print("interrupted\n");
-        typeKey(f_stored, stored_modifiers, true);
+        typeKey(f_stored, stored_modifiers, false);
         f_stored = Key_NoKey;
       }
-      return mapped_key;
-    } else if (keyIsPressed(key_state) && keyWasPressed(key_state)) {
-      if (row == 2) {
-        if (col == 4) {
-          if (f_handeled) {
-            if (debug) Serial.print("f suppressed\n");
-            return Key_NoKey;
-          }
-        } else if (col == 3) {
-          if (d_handeled) {
-            if (debug) Serial.print("d suppressed\n");
-            return Key_NoKey;
-          }
+    }
+  }
+
+  class LEDStatus : public kaleidoscope::Plugin {
+    public: 
+      LEDStatus() {}
+      
+      EventHandlerResult afterEachCycle();
+    private:
+      static bool cleaned;
+  };
+
+  bool LEDStatus::cleaned = true;
+  EventHandlerResult LEDStatus::afterEachCycle() {
+    cRGB alert_color = CRGB(0, 0, 0);
+    bool draw = true;
+    if (Layer.isOn(STENO)) {
+      cleaned = false;
+      alert_color = CRGB(255, 0, 0);
+    } else if (Layer.isOn(FUNCTION)) {
+      cleaned = false;
+      alert_color = CRGB(255, 255, 255);
+    } else if (!cleaned) {
+      cleaned = true;
+    } else {
+      draw = false;
+    }
+  
+    if (draw) {
+      for (uint8_t c = 0; c < 16; c++) {
+        if (c != 7 && c != 8) {
+          KeyboardHardware.setCrgbAt(0, c, alert_color);
         }
       }
-    } else if (keyToggledOff(key_state)) {
-      if (row == 2) {
-        if (col == 4) {
-          if (debug) Serial.print("f released\n");
-          if (f_stored != Key_NoKey) {
-            typeKey(f_stored, stored_modifiers, true);
-            f_stored = Key_NoKey;
-          }
-          f_handeled = false;
-        } else if (col == 3) {
-          if (debug) Serial.print("d released\n");
-          d_handeled = false;
-        }
-      }
-    }
-  }
-  return mapped_key;
-}
-
-bool cleaned = true;
-void loopHook(bool is_post_clear) {
-  if (!is_post_clear)
-    return;
-
-  if (millis() - start_time > time_out) {
-    f_handeled = false;
-    if (f_stored != Key_NoKey) {
-      if (debug) Serial.print("f timed out\n");
-      typeKey(f_stored, stored_modifiers, false);
-      f_stored = Key_NoKey;
-    }
-  }
-
-  cRGB alert_color = CRGB(0, 0, 0);
-  bool draw = true;
-  if (OneShot.isActive()) {
-    cleaned = false;
-    alert_color = CRGB(255, 255, 0);
-  } else if (Layer.isOn(GAMING)) {
-    cleaned = false;
-    alert_color = CRGB(0, 0, 255);
-  } else if (Layer.isOn(STENO)) {
-    cleaned = false;
-    alert_color = CRGB(255, 0, 0);
-  } else if (Layer.isOn(FUNCTION)) {
-    cleaned = false;
-    alert_color = CRGB(255, 255, 255);
-  } else if (!cleaned) {
-    cleaned = true;
-  } else {
-    draw = false;
-  }
-
-  if (draw) {
-    for (uint8_t c = 0; c < 16; c++) {
-      if (c != 7 && c != 8) {
-        LEDControl.setCrgbAt(0, c, alert_color);
-      }
     }
   }
 }
 
-static void switchToSteno(uint8_t seq_index) {
-  Layer.move(STENO);
-}
+kaleidoscope::FDEscape FDEscape;
+kaleidoscope::LEDStatus LEDStatus;
 
-static void switchToGaming(uint8_t seq_index) {
-  Layer.move(GAMING);
-}
+// First, tell Kaleidoscope which plugins you want to use.
+// The order can be important. For example, LED effects are
+// added in the order they're listed here.
+KALEIDOSCOPE_INIT_PLUGINS(
+  LEDControl,
+  StalkerEffect,
+  MouseKeys,
+  HostPowerManagement,
+  USBQuirks,
+  TapDance,
+  Leader,
+  FDEscape,
+  LEDStatus
+);
 
-static void switchToQwerty(uint8_t seq_index) {
-  Layer.move(QWERTY);
-}
-
-static const kaleidoscope::Leader::dictionary_t leader_dictionary[] PROGMEM =
-  LEADER_DICT(
-    {LEADER_SEQ(LEAD(0), Key_S), switchToSteno},
-    {LEADER_SEQ(LEAD(0), Key_G), switchToGaming},
-    {LEADER_SEQ(LEAD(0), Key_Q), switchToQwerty}
-  );
-
+/** The 'setup' function is one of the two standard Arduino sketch functions.
+ * It's called when your keyboard first powers up. This is where you set up
+ * Kaleidoscope and any plugins.
+ */
 void setup() {
-  Serial.begin(9600);
-
-  Kaleidoscope.use(
-    &GeminiPR,
-    &Qukeys,
-    &StalkerEffect,
-    &HostPowerManagement,
-    &TapDance,
-    &MouseKeys,
-    &OneShot,
-    &Leader
-  );
-
+  // First, call Kaleidoscope's internal setup function
+  Kaleidoscope.setup();
+  
   StalkerEffect.variant = STALKER(BlazingTrail);
   StalkerEffect.activate();
 
-  HostPowerManagement.enableWakeup();
-
   Leader.dictionary = leader_dictionary;
-
-  Kaleidoscope.useEventHandlerHook(eventHandlerHook);
-  Kaleidoscope.useLoopHook(loopHook);
-
-  Kaleidoscope.setup();
 }
+
+/** loop is the second of the standard Arduino sketch functions.
+  * As you might expect, it runs in a loop, never exiting.
+  *
+  * For Kaleidoscope-based keyboard firmware, you usually just want to
+  * call Kaleidoscope.loop(); and not do anything custom here.
+  */
 
 void loop() {
   Kaleidoscope.loop();
