@@ -167,7 +167,7 @@ namespace kaleidoscope {
       return EventHandlerResult::OK;
     }
 
-    if (Layer.isOn(QWERTY)) {
+    if (Layer.isOn(QWERTY) && !Layer.isOn(STENO) && !Layer.isOn(FUNCTION)) {
       if (keyToggledOn(key_state)) {
         if (row == 2) {
           if (col == 4) {
@@ -329,6 +329,7 @@ KALEIDOSCOPE_INIT_PLUGINS(
  */
 void setup() {
   // First, call Kaleidoscope's internal setup function
+  Serial.begin(9600);
   Kaleidoscope.setup();
   
   StalkerEffect.variant = STALKER(BlazingTrail);
