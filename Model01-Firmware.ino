@@ -24,6 +24,7 @@
 
 enum { LEFT_BRACKET, RIGHT_BRACKET };
 enum { QWERTY, STENO, FUNCTION };
+enum { TOGGLE_STENO };
 
 /* This comment temporarily turns off astyle's indent enforcement
  *   so we can make the keymaps actually resemble the physical key layout better
@@ -46,7 +47,7 @@ KEYMAPS(
  XXX,               Key_N, Key_M, Key_Comma, Key_Period,    Key_Slash,     XXX,
  
  Key_RightAlt, Key_Enter, Key_Spacebar, Key_RightGui,
- ShiftToLayer(FUNCTION)),
+ M(TOGGLE_STENO)),
  
 [STENO] = KEYMAP_STACKED
 (XXX,    XXX,   XXX,   XXX,   XXX,   XXX,   S(N6),
@@ -63,7 +64,7 @@ KEYMAPS(
  S(ST4), S(ST4), S(RR), S(BR), S(GR), S(SR), S(ZR),
 
  XXX, S(E), S(U), S(RE2),
- ShiftToLayer(FUNCTION)),
+ M(TOGGLE_STENO)),
 
 [FUNCTION] =  KEYMAP_STACKED
 (XXX, Key_F1, Key_F2,     Key_F3,      Key_F4,            Key_F5,        XXX,
@@ -80,8 +81,8 @@ KEYMAPS(
  XXX, Key_Home,             Key_PageDown,         Key_PageUp,         Key_End,               XXX,     XXX,
 
  Key_RightShift, Key_Enter, Key_Tab, Key_RightGui,
- ShiftToLayer(FUNCTION))
-) // KEYMAPS(
+ XXX),
+)
 
 /* Re-enable astyle's indent enforcement */
 // *INDENT-ON*
@@ -283,7 +284,7 @@ namespace kaleidoscope {
 kaleidoscope::FDEscape FDEscape;
 kaleidoscope::LEDStatus LEDStatus;
 
-enum { TOGGLE_STENO, TOGGLE_PROTOCOL };
+enum { TOGGLE_PROTOCOL };
 
 void toggleSteno(uint8_t combo_index) {
   if (Layer.isOn(STENO)) {
@@ -303,8 +304,17 @@ static void toggleKeyboardProtocol(uint8_t combo_index) {
 
 
 USE_MAGIC_COMBOS(
-  [TOGGLE_STENO] = {.action = toggleSteno, .keys = {R3C6, R3C9, R2C2}},
   [TOGGLE_PROTOCOL] = {.action = toggleKeyboardProtocol, .keys = {R3C6, R3C9, R1C14}});
+
+const macro_t *macroAction(uint8_t macroIndex, uint8_t keyState) {
+  switch (macroIndex) {
+    case TOGGLE_STENO:
+      if (keyToggledOn(keyState)) {
+        toggleSteno(0);
+      }
+      return MACRO_NONE;
+  }
+}
 
 // First, tell Kaleidoscope which plugins you want to use.
 // The order can be important. For example, LED effects are
