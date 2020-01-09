@@ -38,7 +38,7 @@ KEYMAPS(
  Key_Escape,   Key_A, Key_S, Key_D, Key_F, Key_G,
  Key_Backtick, Key_Z, Key_X, Key_C, Key_V, Key_B, XXX,
    
- Key_Tab, Key_Backspace, Key_LeftShift,  Key_LeftControl,
+ Key_LeftAlt, Key_Backspace, Key_LeftShift,  Key_LeftControl,
  ShiftToLayer(FUNCTION),
 
  Key_Minus,         Key_6, Key_7, Key_8,     Key_9,         Key_0,         XXX,
@@ -50,18 +50,18 @@ KEYMAPS(
  M(TOGGLE_STENO)),
  
 [STENO] = KEYMAP_STACKED
-(XXX,    XXX,   XXX,   XXX,   XXX,   XXX,   S(N6),
- XXX,    S(N1), S(N2), S(N3), S(N4), S(N5), S(ST1),
- S(FN),  S(S1), S(TL), S(PL), S(HL), S(ST1),
- S(PWR), S(S2), S(KL), S(WL), S(RL), S(ST2), S(ST2),
+(XXX,        Key_1, Key_2, Key_3, Key_4, Key_5, Key_Equals,
+ Key_Tab,    S(N1), S(N2), S(N3), S(N4), S(N5), S(ST1),
+ Key_Escape, S(S1), S(TL), S(PL), S(HL), S(ST1),
+ S(PWR),     S(S2), S(KL), S(WL), S(RL), S(ST2), S(ST2),
 
  S(RE1), S(A), S(O), XXX,
  ShiftToLayer(FUNCTION),
 
- S(N7),  XXX,    XXX,   XXX,   XXX,   XXX,   XXX,
- S(ST3), S(N8),  S(N9), S(NA), S(NB), S(NC), XXX,
- S(ST3), S(FR),  S(PR), S(LR), S(TR), S(DR),
- S(ST4), S(ST4), S(RR), S(BR), S(GR), S(SR), S(ZR),
+ Key_Minus, Key_6,  Key_7, Key_8, Key_9, Key_0, XXX,
+ S(ST3),    S(N8),  S(N9), S(NA), S(NB), S(NC), XXX,
+ S(ST3),    S(FR),  S(PR), S(LR), S(TR), S(DR),
+ S(ST4),    S(ST4), S(RR), S(BR), S(GR), S(SR), S(ZR),
 
  XXX, S(E), S(U), S(RE2),
  M(TOGGLE_STENO)),
@@ -72,7 +72,7 @@ KEYMAPS(
  XXX, XXX,    Key_mouseL, Key_mouseDn, Key_mouseR,        Key_mouseBtnL,
  XXX, XXX,    XXX,        XXX,         Key_mouseScrollDn, Key_mouseBtnM, XXX,
  
- Key_LeftAlt, Key_Delete, Key_LeftControl, Key_LeftShift,
+ Key_LeftAlt, Key_Delete, Key_LeftShift, Key_LeftControl,
  ShiftToLayer(FUNCTION),
 
  XXX, Key_F6,               Key_F7,               Key_F8,             Key_F9,                Key_F10, Key_F11,
@@ -80,7 +80,7 @@ KEYMAPS(
       Key_LeftArrow,        Key_DownArrow,        Key_UpArrow,        Key_RightArrow,        XXX,     XXX,
  XXX, Key_Home,             Key_PageDown,         Key_PageUp,         Key_End,               XXX,     XXX,
 
- Key_RightShift, Key_Enter, Key_Tab, Key_RightGui,
+ Key_RightAlt, Key_Enter, Key_Tab, Key_RightGui,
  XXX),
 )
 
